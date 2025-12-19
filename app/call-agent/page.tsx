@@ -18,11 +18,6 @@ export default function AICallAgent() {
   const [mounted, setMounted] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('US');
-  const [productName, setProductName] = useState('');
-  const [productDescription, setProductDescription] = useState('');
-  const [pitch, setPitch] = useState('');
-  const [voiceType, setVoiceType] = useState('professional');
-  const [callDuration, setCallDuration] = useState('2');
   const [isProcessing, setIsProcessing] = useState(false);
   const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'in-call' | 'completed' | 'failed'>('idle');
   const [callProgress, setCallProgress] = useState(0);
@@ -203,8 +198,8 @@ export default function AICallAgent() {
   const handleStartCall = async () => {
     setErrorMessage('');
 
-    if (!phoneNumber || !productName || !pitch) {
-      setErrorMessage('Please fill in all required fields');
+    if (!phoneNumber) {
+      setErrorMessage('Please enter a phone number');
       return;
     }
 
@@ -223,8 +218,9 @@ export default function AICallAgent() {
     try {
       const fullPhoneNumber = `${region?.dialCode}${cleanedNumber}`;
 
-      console.log('Initiating call to:', fullPhoneNumber);
+      console.log('Initiating VAPI call to:', fullPhoneNumber);
 
+      // Call your VAPI API endpoint
       const response = await fetch('/api/call', {
         method: 'POST',
         headers: {
@@ -232,10 +228,7 @@ export default function AICallAgent() {
         },
         body: JSON.stringify({
           phoneNumber: fullPhoneNumber,
-          productName,
-          productDescription,
-          pitch,
-          voiceType,
+          assistantId: process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID,
         }),
       });
 
@@ -245,7 +238,7 @@ export default function AICallAgent() {
         throw new Error(data.error || 'Failed to initiate call');
       }
 
-      console.log('Call initiated:', data.callId);
+      console.log('VAPI call initiated:', data.callId);
 
       setCallId(data.callId);
       setCallProgress(30);
@@ -276,7 +269,7 @@ export default function AICallAgent() {
 
         setCallProgress(prev => Math.min(prev + 2, 95));
 
-        if (data.status === 'completed') {
+        if (data.status === 'completed' || data.status === 'ended') {
           setCallProgress(100);
           setCallStatus('completed');
           setIsProcessing(false);
@@ -329,7 +322,7 @@ export default function AICallAgent() {
             </div>
             <div>
               <h1 className="text-2xl font-semibold text-foreground">AI Call Agent</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Automated product pitching with AI-powered voice</p>
+              <p className="mt-1 text-sm text-muted-foreground">VAPI-powered AI assistant for automated calls</p>
             </div>
           </div>
         </div>
@@ -423,302 +416,203 @@ export default function AICallAgent() {
               </div>
             </div>
 
-            {/* Product Information */}
-            <div className="bg-card border border-border rounded-lg p-6 hover:border-muted-foreground/50 transition-colors">
-              <h2 className="text-sm font-medium text-foreground mb-4">Product Information</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-2">
-                    Product/Service Name <span className="text-destructive">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                    placeholder="e.g., Premium CRM Software"
-                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground"
-                    disabled={callStatus !== 'idle'}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-2">
-                    Brief Description
-                  </label>
-                  <input
-                    type="text"
-                    value={productDescription}
-                    onChange={(e) => setProductDescription(e.target.value)}
-                    placeholder="e.g., Cloud-based customer relationship management"
-                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground"
-                    disabled={callStatus !== 'idle'}
-                  />
-                </div>
-              </div>
-            </div>
-
-           {/* Sales Pitch */}
-<div className="bg-card border border-border rounded-lg p-6 hover:border-muted-foreground/50 transition-colors">
-  <label className="block text-sm font-medium text-foreground mb-3">
-    Sales Pitch <span className="text-destructive">*</span>
-  </label>
-  <textarea
-    value={pitch}
-    onChange={(e) => setPitch(e.target.value)}
-    placeholder="Enter your sales pitch here. The AI will use this as a script and adapt it naturally during the conversation...
-
-Example: 
-Hello! I'm calling from [Company Name] to tell you about our revolutionary CRM software that can increase your sales by 40%. It's cloud-based, easy to use, and comes with a 30-day free trial. Would you be interested in learning more?"
-    className="w-full h-48 px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent resize-none bg-background text-foreground text-sm"
-    disabled={callStatus !== 'idle'}
-  />
-  <div className="mt-2 flex justify-between items-center">
-    <span className="text-xs text-muted-foreground">{pitch.length} characters</span>
-    {pitch.length > 0 && callStatus === 'idle' && (
-      <button
-        onClick={() => setPitch('')}
-        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
-        Clear
-      </button>
-    )}
-  </div>
-</div>
-
-{/* Call Settings */}
-        <div className="bg-card border border-border rounded-lg p-6 hover:border-muted-foreground/50 transition-colors">
-          <h2 className="text-sm font-medium text-foreground mb-4">Call Settings</h2>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-2">
-                Voice Type
-              </label>
-              <select
-                value={voiceType}
-                onChange={(e) => setVoiceType(e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm bg-background text-foreground"
-                disabled={callStatus !== 'idle'}
-              >
-                <option value="professional">Professional (Neutral)</option>
-                <option value="friendly">Friendly (Warm)</option>
-                <option value="energetic">Energetic (Enthusiastic)</option>
-                <option value="calm">Calm (Soothing)</option>
-              </select>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Max Call Duration
-                </label>
-                <span className="text-xs text-muted-foreground">{callDuration} minutes</span>
-              </div>
-              <input
-                type="range"
-                min="1"
-                max="5"
-                step="0.5"
-                value={callDuration}
-                onChange={(e) => setCallDuration(e.target.value)}
-                className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
-                disabled={callStatus !== 'idle'}
-              />
-              <div className="flex justify-between mt-1">
-                <span className="text-xs text-muted-foreground">1 min</span>
-                <span className="text-xs text-muted-foreground">5 min</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Button */}
-        {callStatus === 'idle' && (
-          <button
-            onClick={handleStartCall}
-            disabled={isProcessing}
-            className="w-full px-6 py-4 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground rounded-lg font-medium transition-all flex items-center justify-center gap-3 text-base shadow-sm hover:shadow-md"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-            </svg>
-            Start AI Call
-          </button>
-        )}
-
-        {callStatus === 'completed' && (
-          <button
-            onClick={handleReset}
-            className="w-full px-6 py-4 border border-border hover:bg-secondary text-foreground rounded-lg font-medium transition-colors flex items-center justify-center gap-3 text-base"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Make Another Call
-          </button>
-        )}
-      </div>
-
-      {/* Right Column - Status */}
-      <div className="lg:col-span-1">
-        <div className="sticky top-8 space-y-4">
-          {/* Call Status Card */}
-          <div className="bg-card border border-border rounded-lg p-6">
-            <h3 className="text-sm font-medium text-foreground mb-4">Call Status</h3>
-            
-            {callStatus === 'idle' && (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            {/* Assistant Info */}
+            <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-6">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
                 </div>
-                <p className="text-sm text-muted-foreground">Ready to initiate call</p>
-              </div>
-            )}
-
-            {callStatus === 'calling' && (
-              <div className="space-y-4">
-                <div className="text-center py-4">
-                  <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                    <svg className="w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm font-medium text-foreground mb-1">Connecting...</p>
-                  <p className="text-xs text-muted-foreground">Dialing {getFullPhoneNumber()}</p>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Progress</span>
-                    <span>{callProgress}%</span>
-                  </div>
-                  <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-primary h-full transition-all duration-300 ease-out"
-                      style={{ width: `${callProgress}%` }}
-                    />
-                  </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-foreground mb-1">AI Assistant: Ryvon</h3>
+                  <p className="text-xs text-muted-foreground">Your pre-trained VAPI assistant will handle the call with a professional, engaging conversation tailored to your product.</p>
                 </div>
               </div>
-            )}
+            </div>
 
-            {callStatus === 'in-call' && (
-              <div className="space-y-4">
-                <div className="text-center py-4">
-                  <div className="relative w-16 h-16 mx-auto mb-4">
-                    <div className="absolute inset-0 bg-green-500/20 rounded-full animate-ping"></div>
-                    <div className="relative w-16 h-16 bg-green-500 rounded-full flex items-center justify-center">
-                      <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="text-sm font-medium text-green-600 dark:text-green-400 mb-1">Call in Progress</p>
-                  <p className="text-xs text-muted-foreground">AI is pitching your product</p>
-                </div>
-
-                <div className="space-y-3 bg-muted rounded-lg p-4">
-                  <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mt-1.5 animate-pulse"></div>
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground">Greeting customer</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mt-1.5 animate-pulse"></div>
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground">Introducing product</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-muted-foreground/30 rounded-full mt-1.5"></div>
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground/50">Handling objections</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Progress</span>
-                    <span>{callProgress}%</span>
-                  </div>
-                  <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-green-500 h-full transition-all duration-300 ease-out"
-                      style={{ width: `${callProgress}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
+            {/* Action Button */}
+            {callStatus === 'idle' && (
+              <button
+                onClick={handleStartCall}
+                disabled={isProcessing}
+                className="w-full px-6 py-4 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground rounded-lg font-medium transition-all flex items-center justify-center gap-3 text-base shadow-sm hover:shadow-md"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+                Start AI Call
+              </button>
             )}
 
             {callStatus === 'completed' && (
-              <div className="space-y-4">
-                <div className="text-center py-4">
-                  <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm font-medium text-foreground mb-1">Call Completed</p>
-                  <p className="text-xs text-muted-foreground">Successfully delivered pitch</p>
-                </div>
-
-                <div className="bg-green-500/10 rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Duration</span>
-                    <span className="font-medium text-foreground">2m 34s</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Engagement</span>
-                    <span className="font-medium text-green-600 dark:text-green-400">High</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Outcome</span>
-                    <span className="font-medium text-green-600 dark:text-green-400">Interested</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {callStatus === 'failed' && (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </div>
-                <p className="text-sm font-medium text-foreground mb-1">Call Failed</p>
-                <p className="text-xs text-muted-foreground">Please try again</p>
-              </div>
+              <button
+                onClick={handleReset}
+                className="w-full px-6 py-4 border border-border hover:bg-secondary text-foreground rounded-lg font-medium transition-colors flex items-center justify-center gap-3 text-base"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Make Another Call
+              </button>
             )}
           </div>
 
-          {/* Quick Tips */}
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
-            <div className="flex gap-2">
-              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              <div>
-                <h4 className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">Tips for Best Results</h4>
-                <ul className="text-xs text-blue-600/80 dark:text-blue-400/80 space-y-1">
-                  <li>• Keep pitch clear and concise</li>
-                  <li>• Include key benefits</li>
-                  <li>• Add a clear call-to-action</li>
-                  <li>• Verify phone number accuracy</li>
-                </ul>
+          {/* Right Column - Status */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-8 space-y-4">
+              {/* Call Status Card */}
+              <div className="bg-card border border-border rounded-lg p-6">
+                <h3 className="text-sm font-medium text-foreground mb-4">Call Status</h3>
+                
+                {callStatus === 'idle' && (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Ready to initiate call</p>
+                  </div>
+                )}
+
+                {callStatus === 'calling' && (
+                  <div className="space-y-4">
+                    <div className="text-center py-4">
+                      <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                        <svg className="w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-medium text-foreground mb-1">Connecting...</p>
+                      <p className="text-xs text-muted-foreground">Dialing {getFullPhoneNumber()}</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Progress</span>
+                        <span>{callProgress}%</span>
+                      </div>
+                      <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-primary h-full transition-all duration-300 ease-out"
+                          style={{ width: `${callProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {callStatus === 'in-call' && (
+                  <div className="space-y-4">
+                    <div className="text-center py-4">
+                      <div className="relative w-16 h-16 mx-auto mb-4">
+                        <div className="absolute inset-0 bg-green-500/20 rounded-full animate-ping"></div>
+                        <div className="relative w-16 h-16 bg-green-500 rounded-full flex items-center justify-center">
+                          <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <p className="text-sm font-medium text-green-600 dark:text-green-400 mb-1">Call in Progress</p>
+                      <p className="text-xs text-muted-foreground">Ryvon is handling the call</p>
+                    </div>
+
+                    <div className="space-y-3 bg-muted rounded-lg p-4">
+                      <div className="flex items-start gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mt-1.5 animate-pulse"></div>
+                        <div className="flex-1">
+                          <p className="text-xs text-muted-foreground">Greeting customer</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mt-1.5 animate-pulse"></div>
+                        <div className="flex-1">
+                          <p className="text-xs text-muted-foreground">Delivering pitch</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <div className="w-2 h-2 bg-muted-foreground/30 rounded-full mt-1.5"></div>
+                        <div className="flex-1">
+                          <p className="text-xs text-muted-foreground/50">Handling questions</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Progress</span>
+                        <span>{callProgress}%</span>
+                      </div>
+                      <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-green-500 h-full transition-all duration-300 ease-out"
+                          style={{ width: `${callProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {callStatus === 'completed' && (
+                  <div className="space-y-4">
+                    <div className="text-center py-4">
+                      <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-medium text-foreground mb-1">Call Completed</p>
+                      <p className="text-xs text-muted-foreground">Successfully delivered pitch</p>
+                    </div>
+
+                    <div className="bg-green-500/10 rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Status</span>
+                        <span className="font-medium text-green-600 dark:text-green-400">Success</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Call ID</span>
+                        <span className="font-medium text-foreground">{callId?.slice(0, 8)}...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {callStatus === 'failed' && (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <p className="text-sm font-medium text-foreground mb-1">Call Failed</p>
+                    <p className="text-xs text-muted-foreground">Please try again</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Tips */}
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                <div className="flex gap-2">
+                  <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <h4 className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">How It Works</h4>
+                    <ul className="text-xs text-blue-600/80 dark:text-blue-400/80 space-y-1">
+                      <li>• Enter any valid phone number</li>
+                      <li>• Ryvon AI handles the conversation</li>
+                      <li>• Professional product pitching</li>
+                      <li>• Powered by VAPI + Twilio</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
-  </main>
-</div>
-);
+  );
 }

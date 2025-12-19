@@ -1,205 +1,117 @@
-import { NextResponse } from 'next/server';
-import twilio from 'twilio';
+import { NextRequest, NextResponse } from 'next/server';
 
-interface CallRequest {
-  phoneNumber: string;
-  productName: string;
-  productDescription?: string;
-  pitch: string;
-  voiceType: string;
-}
-
-export async function POST(req: Request) {
+// POST endpoint - Initiate call
+export async function POST(request: NextRequest) {
   try {
-    const { 
-      phoneNumber, 
-      productName, 
-      productDescription, 
-      pitch, 
-      voiceType 
-    }: CallRequest = await req.json();
+    const { phoneNumber, assistantId } = await request.json();
 
-    // Validate inputs
-    if (!phoneNumber || !productName || !pitch) {
+    if (!phoneNumber) {
       return NextResponse.json(
-        { error: 'Missing required fields', success: false },
+        { success: false, error: 'Phone number is required' },
         { status: 400 }
       );
     }
 
-    // Validate Twilio credentials
-    if (!process.env.TWILIO_ACCOUNT_SID || 
-        !process.env.TWILIO_AUTH_TOKEN || 
-        !process.env.TWILIO_PHONE_NUMBER) {
-      console.error('Missing Twilio credentials');
+    // Make request to VAPI to initiate call
+    const response = await fetch('https://api.vapi.ai/call/phone', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.VAPI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
+        customer: {
+          number: phoneNumber,
+        },
+        assistantId: assistantId || process.env.VAPI_ASSISTANT_ID,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('VAPI API Error:', errorData);
       return NextResponse.json(
-        { error: 'Twilio credentials not configured', success: false },
-        { status: 500 }
+        { 
+          success: false, 
+          error: errorData.message || 'Failed to initiate call' 
+        },
+        { status: response.status }
       );
     }
 
-    console.log('Making call to:', phoneNumber);
+    const data = await response.json();
 
-    // Initialize Twilio client
-    const client = twilio(
-      process.env.TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_AUTH_TOKEN
-    );
+    console.log('VAPI call initiated successfully:', data);
 
-    // Map voice types to Twilio voices
-    const voiceMap: { [key: string]: string } = {
-      professional: 'Polly.Matthew',
-      friendly: 'Polly.Joanna',
-      energetic: 'Polly.Justin',
-      calm: 'Polly.Amy',
-    };
+    return NextResponse.json({
+      success: true,
+      callId: data.id,
+      status: data.status,
+    });
 
-    // Clean the pitch text
-    const cleanPitch = pitch
-      .replace(/[<>]/g, '')
-      .replace(/\n/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    // Get base URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
-
-    // Check if we have a public URL (not localhost)
-    const isPublicUrl = !cleanBaseUrl.includes('localhost') && !cleanBaseUrl.includes('127.0.0.1');
-
-    if (isPublicUrl) {
-      // Use URL-based TwiML (works with Cloudflare tunnel, ngrok, etc.)
-      const params = new URLSearchParams({
-        pitch: cleanPitch,
-        productName: productName,
-        voice: voiceMap[voiceType] || 'Polly.Joanna',
-      });
-
-      const twimlUrl = `${cleanBaseUrl}/api/call/twiml?${params.toString()}`;
-      
-      console.log('Using URL-based TwiML:', twimlUrl);
-
-      const call = await client.calls.create({
-        to: phoneNumber,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        url: twimlUrl,
-        method: 'GET',
-        statusCallback: `${cleanBaseUrl}/api/call/status`,
-        statusCallbackMethod: 'POST',
-        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-        record: false,
-      });
-
-      console.log('Call initiated:', call.sid);
-
-      return NextResponse.json({
-        success: true,
-        callId: call.sid,
-        status: call.status,
-        message: 'Call initiated successfully',
-      });
-
-    } else {
-      // Use inline TwiML for localhost
-      console.log('Using inline TwiML (localhost detected)');
-
-      const escapeXml = (str: string) => {
-        return str
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&apos;');
-      };
-
-      const selectedVoice = voiceMap[voiceType] || 'Polly.Joanna';
-      const safePitch = escapeXml(cleanPitch);
-      const safeProductName = escapeXml(productName);
-
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="${selectedVoice}">
-    Hello! This is a call from ${safeProductName}. How are you doing today?
-  </Say>
-  <Pause length="1"/>
-  <Say voice="${selectedVoice}">
-    ${safePitch}
-  </Say>
-  <Pause length="2"/>
-  <Say voice="${selectedVoice}">
-    Thank you for your time. Have a great day!
-  </Say>
-</Response>`;
-
-      const call = await client.calls.create({
-        to: phoneNumber,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        twiml: twiml,
-        record: false,
-      });
-
-      console.log('Call initiated:', call.sid);
-
-      return NextResponse.json({
-        success: true,
-        callId: call.sid,
-        status: call.status,
-        message: 'Call initiated successfully (inline TwiML)',
-      });
-    }
-
-  } catch (error: any) {
-    console.error('Call API Error:', error);
-    
-    // More detailed error logging
-    if (error.code) {
-      console.error('Twilio Error Code:', error.code);
-    }
-    if (error.moreInfo) {
-      console.error('More Info:', error.moreInfo);
-    }
-    
+  } catch (error) {
+    console.error('Error initiating call:', error);
     return NextResponse.json(
       { 
-        error: error.message || 'Failed to initiate call',
-        success: false,
-        details: error.code ? `Twilio Error ${error.code}` : undefined
+        success: false, 
+        error: error instanceof Error ? error.message : 'Internal server error' 
       },
       { status: 500 }
     );
   }
 }
 
-// Get call status
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const callId = searchParams.get('callId');
-
-  if (!callId) {
-    return NextResponse.json(
-      { error: 'Call ID required' },
-      { status: 400 }
-    );
-  }
-
+// GET endpoint - Check call status
+export async function GET(request: NextRequest) {
   try {
-    const client = twilio(
-      process.env.TWILIO_ACCOUNT_SID!,
-      process.env.TWILIO_AUTH_TOKEN!
-    );
+    const { searchParams } = new URL(request.url);
+    const callId = searchParams.get('callId');
 
-    const call = await client.calls(callId).fetch();
-    
+    if (!callId) {
+      return NextResponse.json(
+        { success: false, error: 'Call ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Fetch call status from VAPI
+    const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${process.env.VAPI_API_KEY}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('VAPI Status Check Error:', errorData);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Failed to fetch call status' 
+        },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+
     return NextResponse.json({
       success: true,
-      status: call.status,
-      duration: call.duration,
+      status: data.status,
+      callId: data.id,
+      duration: data.duration,
+      endedReason: data.endedReason,
     });
-  } catch (error: any) {
-    console.error('Get call status error:', error);
+
+  } catch (error) {
+    console.error('Error checking call status:', error);
     return NextResponse.json(
-      { error: 'Failed to get call status', details: error.message },
+      { 
+        success: false, 
+        error: 'Internal server error' 
+      },
       { status: 500 }
     );
   }
