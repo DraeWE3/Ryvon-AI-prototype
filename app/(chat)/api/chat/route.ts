@@ -1,3 +1,5 @@
+// app/api/chat/route.ts
+// This keeps Vercel AI SDK but uses OpenAI as the provider
 import { geolocation } from "@vercel/functions";
 import {
   convertToModelMessages,
@@ -7,6 +9,7 @@ import {
   stepCountIs,
   streamText,
 } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { unstable_cache as cache } from "next/cache";
 import { after } from "next/server";
 import {
@@ -21,7 +24,6 @@ import type { VisibilityType } from "@/components/visibility-selector";
 import { entitlementsByUserType } from "@/lib/ai/entitlements";
 import type { ChatModel } from "@/lib/ai/models";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
-import { myProvider } from "@/lib/ai/providers";
 import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
@@ -49,6 +51,23 @@ export const maxDuration = 60;
 
 let globalStreamContext: ResumableStreamContext | null = null;
 
+// Create OpenAI provider using Vercel AI SDK
+const openai = createOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Model mapping
+const getOpenAIModel = (chatModel: ChatModel["id"]) => {
+  switch (chatModel) {
+    case "chat-model":
+      return openai("gpt-4o");
+    case "chat-model-reasoning":
+      return openai("o1-preview");
+    default:
+      return openai("gpt-4o");
+  }
+};
+
 const getTokenlensCatalog = cache(
   async (): Promise<ModelCatalog | undefined> => {
     try {
@@ -58,11 +77,11 @@ const getTokenlensCatalog = cache(
         "TokenLens: catalog fetch failed, using default catalog",
         err
       );
-      return; // tokenlens helpers will fall back to defaultCatalog
+      return;
     }
   },
   ["tokenlens-catalog"],
-  { revalidate: 24 * 60 * 60 } // 24 hours
+  { revalidate: 24 * 60 * 60 }
 );
 
 export function getStreamContext() {
@@ -132,7 +151,6 @@ export async function POST(request: Request) {
       if (chat.userId !== session.user.id) {
         return new ChatSDKError("forbidden:chat").toResponse();
       }
-      // Only fetch messages if chat already exists
       messagesFromDb = await getMessagesByChatId({ id });
     } else {
       const title = await generateTitleFromUserMessage({
@@ -145,7 +163,6 @@ export async function POST(request: Request) {
         title,
         visibility: selectedVisibilityType,
       });
-      // New chat - no need to fetch messages, it's empty
     }
 
     const uiMessages = [...convertToUIMessages(messagesFromDb), message];
@@ -180,7 +197,7 @@ export async function POST(request: Request) {
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
         const result = streamText({
-          model: myProvider.languageModel(selectedChatModel),
+          model: getOpenAIModel(selectedChatModel),
           system: systemPrompt({ selectedChatModel, requestHints }),
           messages: convertToModelMessages(uiMessages),
           stopWhen: stepCountIs(5),
@@ -210,8 +227,8 @@ export async function POST(request: Request) {
           onFinish: async ({ usage }) => {
             try {
               const providers = await getTokenlensCatalog();
-              const modelId =
-                myProvider.languageModel(selectedChatModel).modelId;
+              const modelId = getOpenAIModel(selectedChatModel).modelId;
+              
               if (!modelId) {
                 finalMergedUsage = usage;
                 dataStream.write({
@@ -278,16 +295,6 @@ export async function POST(request: Request) {
       },
     });
 
-    // const streamContext = getStreamContext();
-
-    // if (streamContext) {
-    //   return new Response(
-    //     await streamContext.resumableStream(streamId, () =>
-    //       stream.pipeThrough(new JsonToSseTransformStream())
-    //     )
-    //   );
-    // }
-
     return new Response(stream.pipeThrough(new JsonToSseTransformStream()));
   } catch (error) {
     const vercelId = request.headers.get("x-vercel-id");
@@ -296,14 +303,12 @@ export async function POST(request: Request) {
       return error.toResponse();
     }
 
-    // Check for Vercel AI Gateway credit card error
-    if (
-      error instanceof Error &&
-      error.message?.includes(
-        "AI Gateway requires a valid credit card on file to service requests"
-      )
-    ) {
-      return new ChatSDKError("bad_request:activate_gateway").toResponse();
+    // Check for OpenAI API errors
+    if (error instanceof Error) {
+      if (error.message?.includes("API key")) {
+        console.error("OpenAI API key error:", error);
+        return new ChatSDKError("unauthorized:chat").toResponse();
+      }
     }
 
     console.error("Unhandled error in chat API:", error, { vercelId });
