@@ -25,7 +25,6 @@ export default function Page() {
 
   const { update: updateSession } = useSession();
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: router and updateSession are stable refs
   useEffect(() => {
     if (state.status === "failed") {
       toast({
@@ -40,9 +39,10 @@ export default function Page() {
     } else if (state.status === "success") {
       setIsSuccessful(true);
       updateSession();
-      router.refresh();
+      // Redirect to home page or dashboard after successful login
+      router.push("/"); // Change this to your desired route (e.g., "/dashboard")
     }
-  }, [state.status]);
+  }, [state.status, router, updateSession]);
 
   const handleSubmit = (formData: FormData) => {
     setEmail(formData.get("email") as string);
