@@ -51,9 +51,10 @@ export const maxDuration = 60;
 
 let globalStreamContext: ResumableStreamContext | null = null;
 
-// Create OpenAI provider using Vercel AI SDK
+// Create OpenAI provider using Vercel AI SDK - Fixed to use OpenAI directly
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'https://api.openai.com/v1', // Force direct OpenAI connection
 });
 
 // Model mapping
