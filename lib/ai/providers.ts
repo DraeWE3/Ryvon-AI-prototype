@@ -28,9 +28,9 @@ export const myProvider = isTestEnvironment
         // Main chat model with vision capabilities
         "chat-model": openai("gpt-4-turbo"),
         
-        // Reasoning model - use o1-mini or gpt-4 with reasoning extraction
+        // Reasoning model - use gpt-4-turbo (o1 models may not be available)
         "chat-model-reasoning": wrapLanguageModel({
-          model: openai("o1-mini"), // or "gpt-4-turbo" if you don't have o1 access
+          model: openai("gpt-4-turbo"),
           middleware: extractReasoningMiddleware({ tagName: "think" }),
         }),
         
