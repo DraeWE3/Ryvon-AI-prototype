@@ -51,10 +51,17 @@ export const maxDuration = 60;
 
 let globalStreamContext: ResumableStreamContext | null = null;
 
-// Create OpenAI provider using Vercel AI SDK - Fixed to use OpenAI directly
+// Create OpenAI provider using Vercel AI SDK - Force direct connection
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  baseURL: 'https://api.openai.com/v1', // Force direct OpenAI connection
+  baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+  fetch: (url, init) => {
+    // Force URL override to prevent gateway hijacking
+    if (url.toString().includes('ai-gateway.vercel.sh')) {
+      url = 'https://api.openai.com/v1/chat/completions';
+    }
+    return fetch(url, init);
+  },
 });
 
 // Model mapping
