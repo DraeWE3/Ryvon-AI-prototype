@@ -417,7 +417,7 @@ export default function AICallAgent() {
             </div>
 
             {/* Assistant Info */}
-            <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-6">
+            {/* <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-6">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
                   <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -429,7 +429,7 @@ export default function AICallAgent() {
                   <p className="text-xs text-muted-foreground">Your pre-trained VAPI assistant will handle the call with a professional, engaging conversation tailored to your product.</p>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* Action Button */}
             {callStatus === 'idle' && (
