@@ -12,11 +12,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Make request to VAPI to initiate call
+    // Validate environment variables
+    if (!process.env.VAPI_PRIVATE_KEY) {
+      console.error('VAPI_PRIVATE_KEY is not configured');
+      return NextResponse.json(
+        { success: false, error: 'API configuration error - Private key missing' },
+        { status: 500 }
+      );
+    }
+
+    if (!process.env.VAPI_PHONE_NUMBER_ID) {
+      console.error('VAPI_PHONE_NUMBER_ID is not configured');
+      return NextResponse.json(
+        { success: false, error: 'Phone number configuration error' },
+        { status: 500 }
+      );
+    }
+
+    console.log('Initiating call with:', {
+      phoneNumber,
+      phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
+      assistantId: assistantId || process.env.VAPI_ASSISTANT_ID,
+    });
+
+    // Make request to VAPI to initiate call using PRIVATE key (for server-side calls)
     const response = await fetch('https://api.vapi.ai/call/phone', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.VAPI_API_KEY}`,
+        'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`, // PRIVATE key for server-side phone calls
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -28,13 +51,28 @@ export async function POST(request: NextRequest) {
       }),
     });
 
+    // Handle non-OK responses
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('VAPI API Error:', errorData);
+      const errorText = await response.text();
+      let errorData;
+      
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+
+      console.error('VAPI API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+        body: errorText
+      });
+      
       return NextResponse.json(
         { 
           success: false, 
-          error: errorData.message || 'Failed to initiate call' 
+          error: errorData.message || errorText || `Failed to initiate call: ${response.statusText}` 
         },
         { status: response.status }
       );
@@ -42,7 +80,11 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json();
 
-    console.log('VAPI call initiated successfully:', data);
+    console.log('VAPI call initiated successfully:', {
+      callId: data.id,
+      status: data.status,
+      phoneNumber: phoneNumber
+    });
 
     return NextResponse.json({
       success: true,
@@ -75,21 +117,43 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch call status from VAPI
+    // Validate environment variable
+    if (!process.env.VAPI_PRIVATE_KEY) {
+      console.error('VAPI_PRIVATE_KEY is not configured');
+      return NextResponse.json(
+        { success: false, error: 'API configuration error - Private key missing' },
+        { status: 500 }
+      );
+    }
+
+    // Fetch call status from VAPI using PRIVATE key
     const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${process.env.VAPI_API_KEY}`,
+        'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`, // PRIVATE key
       },
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('VAPI Status Check Error:', errorData);
+      const errorText = await response.text();
+      let errorData;
+      
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+
+      console.error('VAPI Status Check Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
+      
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Failed to fetch call status' 
+          error: errorData.message || 'Failed to fetch call status' 
         },
         { status: response.status }
       );
@@ -110,7 +174,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false, 
-        error: 'Internal server error' 
+        error: error instanceof Error ? error.message : 'Internal server error' 
       },
       { status: 500 }
     );
